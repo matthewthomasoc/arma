@@ -6,7 +6,10 @@ Mission for Arma 3
   - Jet
     - [x] Jet patrols around map 
     - [x] Jet can strafe a given position reliably and effectively
+      - [ ] Movement is smooth, realistic
+      - [ ] Jet avoids obstacles
     - [ ] Jet can land at the airfield, taxi, refuel, repair, and rearm, creating vulnerability
+      - [ ] Taxi movement is smooth, realistic
     - [ ] Jet can take-off and return to normal operations
   - Search helicopter
     - [ ] Helicopter patrols around map
