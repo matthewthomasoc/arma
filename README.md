@@ -42,11 +42,12 @@ In order to fire any flare, the following conditions must be met:
 
 In order to fire white flares, the following conditions must be met:
   - It must be dark
-  - Enemy unit has not been seen for more than 5 seconds
+  - Enemy unit has not been seen for more than 5 seconds (to not disrupt the SL firing)
 
 In order to fire green flares, the following conditions must be met:
   - The enemy unit has not been seen for more than a minute*
 
 In order to fire red flares, the following conditions must be met:
-  - The squad leader has been under large suppression for at least 15 seconds
+  - The squad leader is under large suppression
+  - The squad leader is under accurate fire from far distance
   - There are no friendlies within' 200 meters of the strike zone (friendly fire still possible)
