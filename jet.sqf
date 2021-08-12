@@ -284,4 +284,5 @@ while {alive _this} do {
 	} else {
 		[_center, _this] call fn_patrol;
 	};
+	uiSleep 3;
 };
