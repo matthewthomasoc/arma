@@ -24,9 +24,8 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
     - [ ] Killing a squad leader greatly impacts squad organization and strategy, placing emphasis on target importance
   - [ ] Squad leader can call in support, i.e. search helicopter,  jet strafe, nearby reinforcements using GL flares
     - [ ] Killing a squad leader prevents support from being called
-  - [ ] Squad leader can deploy white flares at night time to illuminate positions
-  - [ ] Flare color represents support requested:
-     - Blue: search helicopter
+  - [x] Squad leader can deploy white flares at night time to illuminate positions
+  - [x] Flare color represents support requested:
+     - Green: search helicopter
      - Red: jet strafe
-     - Yellow: nearby reinforcements
   - [ ] Squads have strategies for searching/combing positions after losing contact with enemy
