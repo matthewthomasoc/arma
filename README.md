@@ -50,7 +50,7 @@ The squad leader has an AKM GP-25, with red, green, and white flares.
 - In order to fire red flares, the following conditions must be met:
   - There are no friendlies within' 200 meters of the strike zone (friendly fire still possible)
 
-For firing red flares, a weighted decision making system is used. The weight is impacted by:
+- For firing red flares, a weighted decision making system is used. The weight is impacted by:
   - Level of suppression for whole squad (changes weight over time)
   - Time since last combat (changes weight over time)
   - Advantage of enemy position (affects base weight)
