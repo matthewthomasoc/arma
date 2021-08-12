@@ -35,19 +35,19 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
 
 The squad leader has an AKM GP-25, with red, green, and white flares.
 
-In order to fire any flare, the following conditions must be met:
+- In order to fire any flare, the following conditions must be met:
   - The squad leader must be in combat
   - The squad leader must not be in imminent danger (i.e. being directly shot at very recently)
   - The squad leader must know a general location/direction of the enemy
 
-In order to fire white flares, the following conditions must be met:
+- In order to fire white flares, the following conditions must be met:
   - It must be dark
   - Enemy unit has not been seen for more than 5 seconds (to not disrupt the SL firing)
 
-In order to fire green flares, the following conditions must be met:
+- In order to fire green flares, the following conditions must be met:
   - The enemy unit has not been seen for more than a minute*
 
-In order to fire red flares, the following conditions must be met:
+- In order to fire red flares, the following conditions must be met:
   - The squad leader is under large suppression
   - The squad leader is under accurate fire from far distance
   - There are no friendlies within' 200 meters of the strike zone (friendly fire still possible)
