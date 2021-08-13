@@ -129,7 +129,7 @@ fn_createPath = {
 	_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(75 / 150)] call fn_rotateVector;
 	// Rotate _unit_vec_slope around _crossproduct towards _unit_vec_half, and
 	// multiply it by an increasing distance to get a smooth curve
-	_numPts = 25;
+	_numPts = 50;
 	_array = [];
 	_distance = _halfPoint vectorDistance _point;
 	for "_i" from 1 to _numPts do {
@@ -171,27 +171,53 @@ they also lose direction sometimes and go sideways
 RHS and vanilla work fine */
 fn_strafe = {
 	params ["_target", "_jet"];
+	_targetError = 50;
+	// add slight randomness to target location
+	_targetPosErrored = getPosATL _target vectorAdd [(random 2*_targetError) - _targetError, (random 2*_targetError) - _targetError, 0];
+	_target setPosATL _targetPosErrored;
+	
 	// define properties of attack profile
-	_requiredDistanceAway = 4000; // required distance away to start attack
+	_requiredDistanceAway = 5000; // required distance away to start attack
+	_weapon = _gun;
 	_flyInHeight = 600; // cruising altitude
-	_angleOfAttack = 20; // degrees
-	_startHeight = 400; // meters
-	_endHeight = 150; // meters
-	_numPoints = 25; // number of points on the path where the jet shoots
+	_angleOfAttack = 25; // degrees
+	_startHeight = 550; // meters
+	_endHeight = 350; // meters
+	_numPoints = 20; // number of points on the path where the jet shoots
+	
+	// if using bombs instead (60% chance), change attack profile
+	if( (floor random 10 < 6 && _jet ammo _bombs != 0)) then {
+		_weapon = _bombs;
+		_flyInHeight = 600; // cruising altitude
+		_angleOfAttack = 55; // degrees
+		_startHeight = 600; // meters
+		_endHeight = 400; // meters
+		_numPoints = 1; // number of points on the path where the jet shoots
+	};
+	// if using rockets instead (40% chance), change attack profile
+	if( (floor random 10 >= 6 && _jet ammo _rockets != 0) || _jet ammo _bombs == 0) then {
+		_weapon = _rockets;
+		_flyInHeight = 600; // cruising altitude
+		_angleOfAttack = 25; // degrees
+		_startHeight = 550; // meters
+		_endHeight = 350; // meters
+		_numPoints = 20; // number of points on the path where the jet shoots
+	};
+	
 	
 	// Cruising altitude
 	_jet flyInheight _flyInHeight;
 	
 	// If too close to the target, fly away far 
 	if (_jet distance _target < _requiredDistanceAway) then {
-		_jet move (_jet getRelPos [_requiredDistanceAway*1.25, 0]);
-		waitUntil {_jet distance _target > _requiredDistanceAway};
+		_jet move (_jet getRelPos [_requiredDistanceAway*1.5, 0]);
+		waitUntil {_jet distance _target > _requiredDistanceAway*1.25};
 	};
 	
 	// Re-approach the target from far away
 	_jet move (getPos _target);
-	waitUntil {_jet distance _target < _requiredDistanceAway*.9};
-
+	waitUntil {_jet distance _target < _requiredDistanceAway*.85};
+	
 	// Create strafing path
 	_path = call fn_createPath;
 
@@ -216,8 +242,8 @@ fn_strafe = {
 		_LIpoints = 100;
 		
 		// Fire weapon, if during strafe
-		if ((_forEachIndex) > (count _path - _numPoints)) then {
-			[_jet, "rhs_weap_s8"] call BIS_fnc_fire;
+		if ((_forEachIndex) > ((count _path - 1) - _numPoints)) then {
+			[_jet, _weapon] call BIS_fnc_fire;
 		};
 
 		// Save current time
@@ -234,6 +260,12 @@ fn_strafe = {
 	
 	// Fly away from target
 	_jet move (_jet getRelPos [_requiredDistanceAway, 0]);
+	
+	// Flare twice
+	for "_i" from 0 to ((floor random 4) + 3) do {
+		[_jet, _CM] call BIS_fnc_fire;
+		uiSleep 3;
+	};
 };
 
 /* Patrol around map (more info)
@@ -273,16 +305,58 @@ fn_patrol = {
 	};
 };
 
+fn_land = {
+	_jet landAt _airportID;
+	
+	waitUntil {isTouchingGround _jet};
+};
+
+fn_updateLandDecisionWeight = {
+	_fuelGone = 1 - fuel _jet;
+	_bombsGone = _bombAmmo - (_jet ammo _bombs);
+	_rocketsGone = _rocketAmmo - (_jet ammo _rockets);
+	
+	_ammoWeight = ((_bombsGone / _bombAmmo) + (_rocketsGone / _rocketAmmo)) / 2;
+	_fuelWeight = _fuelGone / 1;
+	
+	_damageWeight = (damage _jet) * 5;
+	
+	_landDecisionWeight = _ammoWeight + _fuelWeight + _damageWeight;
+};
+
+_jet = _this;
+
 _mapRadius = worldSize / 2;
-_target = player;
+jetStrafeTarget = [0,0,0];
 _center = [_mapRadius, _mapRadius, 0];
 _waypointCompletionRadius = 1000;
+_target = "Land_HelipadEmpty_F" createVehicle jetStrafeTarget;
+_rockets = "rhs_weap_s5m1";
+_bombs = "rhs_weap_fab250";
+_gun = "rhs_weap_gsh302";
+_CM = "rhs_weap_CMDispenser_ASO2";
+_airportID = 0; // northwest airfield
+_landDecisionWeight = 0;
+_refuelLimit = 0.75;
+
+_rocketAmmo = _jet ammo _rockets;
+_bombAmmo = _jet ammo _bombs;
+
 jetStrafeRequested = false;
-while {alive _this} do {
+_jet disableAI "TARGET";
+_jet disableAi "AUTOCOMBAT";
+while {alive _jet} do {
+	_target setPosATL jetStrafeTarget;
+	call fn_updateLandDecisionWeight;
+	call fn_land;
+	systemChat str [_landDecisionWeight];
 	if jetStrafeRequested then {
-		[_target, _this] call fn_strafe;
-	} else {
-		[_center, _this] call fn_patrol;
+		[_target, _jet] call fn_strafe;
+		jetStrafeRequested = false;
 	};
-	uiSleep 3;
+	if (_landDecisionWeight >= 1) then {
+		call fn_land;
+	} else {
+		[_center, _jet] call fn_patrol;
+	};
 };
