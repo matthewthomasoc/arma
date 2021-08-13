@@ -55,3 +55,4 @@ A base required weight is necessary for the chance to fire a red flare to become
 
 # Jet
 The jet is a support asset used to deliver devastating firepower to enemy positions. It is armed with bombs and dumb-fire missiles. The jet is called when a squad leader fires a red flare. The weapons chosen by the jet for a strafing run are random, with bombs being more likely than missiles due to the missiles have an exceedingly large area of effect. The jet should force players to not linger in one position in a large engagement. To counter the possiblity of the jet being overpowered due to giving no warning before a strike, the red signal flare will act as a visual warning cue that a strike is incoming. The jet approaches at a very steep angle when using bombs, and a shallow angle when using rockets. Guns are not used because their effect is extremely minimal.
+The pathing system
