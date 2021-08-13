@@ -55,3 +55,4 @@ The squad leader has an AKM GP-25, with red, green, and white flares.
   - Time since last combat (changes weight over time)
   - Advantage of enemy position (affects base weight)
   - Distance to target (affects base weight)
+  - Squad casualties (affects base weight and multiplies suppression)
