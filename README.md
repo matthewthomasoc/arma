@@ -65,7 +65,7 @@ In the transition stage, the jet smoothly travels upward, then downward, along a
   2) Start height
   3) End height
   4) Number of fire points
-  5) 
+
 A line is drawn in the direction of the jet at the given angle of attack from horizontal. A path is created between the start and end height, giving a linear line between the two points. In between the two points and along the path, the given number of fire points are created. When the jet reaches each of these fire points, it will fire it's select weapon once, causing the jet to fire it's weapon as many times as there are fire points.
 
 At the end of the calculated dive, control is given back to the AI. The AI automatically pitches up and climbs to a given altitude, deploying chaff/flares as it leaves the engagement zone. This leads to a smooth transition from the attack to escape phase.
