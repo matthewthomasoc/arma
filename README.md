@@ -22,10 +22,10 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
 - Infantry
   - [ ] Squads consist of special roles, centered around a GL squad leader
     - [ ] Killing a squad leader greatly impacts squad organization and strategy, placing emphasis on target importance
-  - [ ] Squad leader can call in support, i.e. search helicopter,  jet strafe, nearby reinforcements using GL flares
-    - [ ] Killing a squad leader prevents support from being called
-  - [ ] Squad leader can deploy white flares at night time to illuminate positions
-  - [ ] Flare color represents support requested:
+  - [x] Squad leader can call in support, i.e. search helicopter,  jet strafe, nearby reinforcements using GL flares
+    - [x] Killing a squad leader prevents support from being called
+  - [x] Squad leader can deploy white flares at night time to illuminate positions
+  - [x] Flare color represents support requested:
      - Blue: search helicopter
      - Red: jet strafe
      - Yellow: nearby reinforcements
