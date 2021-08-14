@@ -56,6 +56,7 @@ A base required weight is necessary for the chance to fire a red flare to become
 # Jet
 The jet is a support asset used to deliver devastating firepower to enemy positions. It is armed with bombs and dumb-fire missiles. The jet is called when a squad leader fires a red flare. The weapons chosen by the jet for a strafing run are random, with bombs being more likely than missiles due to the missiles have an exceedingly large area of effect. The jet should force players to not linger in one position in a large engagement. To counter the possiblity of the jet being overpowered due to giving no warning before a strike, the red signal flare will act as a visual warning cue that a strike is incoming. The jet approaches at a very steep angle when using bombs, and a shallow angle when using rockets. Guns are not used because their effect is extremely minimal.
 
+### Mechanics
 When there are no requested fire missions, the jet patrols randomly around the map or a specified location. When a fire mission is requested, the jet immediately leaves patrol and heads to the engagement zone. If the jet is too close to the mission, it will simply fly a far distance away before turning around and starting the mission.
 
 The pathing system for the jet strafe uses the `setVelocityTransformation` function to smoothly linear interpolate between points on a calculated path that leads to the target. The path consists of two stages:
@@ -72,7 +73,9 @@ A line is drawn in the direction of the jet at the given angle of attack from ho
 
 At the end of the calculated dive, control is given back to the AI. The AI automatically pitches up and climbs to a given altitude, deploying a random amount of chaff/flares as it leaves the engagement zone. This leads to a smooth transition from the attack to escape phase.
 
-This process is repeatable until the jet runs out of ammo or fuel.
+This process is repeatable until the jet runs out of ammo or fuel, where it begins to land.
 
 ### Landing 
-test
+To add vulnerability to the jet, it is required to land after a specified amount of fuel is used, or after expending ammo or taking damage. This allows for opportunities to ambush, sabotage, or even hijack the plane. The choice to land is decided through a weighted decision making system. The decision to land becomes greater as more fuel and ammo are used, or after a specified amount of damage is taken. The current weights for deciding to land are based off best guesses.
+
+After touching the ground and landing, the jet is immediately taxis off the landing strip and to the repair station. The taxi path is pre-selected and created in the editor using invisible helipads as path nodes. The way the jet moves between nodes is similar to the strafing function, interpolating between positions and changing position over time. Once the jet reaches the repair station, the pilot shuts the engine off, leaves the aircraft, and walks into a tent. The current time for all repairs/refuels/rearms is 3 minutes, but this is subject to change and may become dependant on the amount of fuel, ammo, and repairs needed. After this is completed, the pilot returns to the aircraft, taxis down the runway, and takes off to return to normal operations.
