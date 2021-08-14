@@ -33,6 +33,7 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
 - Logistics
   - [ ] Enemy forces require logistics to have sufficient ammo, fuel reservers for support vehicles
   - [ ] Destroying logistic vehicles reduces the effectiveness of the jet and helicopter by reducing maximum flight time and ammo count
+  - [ ] As logistics become more disrupted, the enemy will start to defend them with vehicles and troops
 
 # Squad Leader
 The squad leader has an AKM GP-25, with red, green, and white flares.
