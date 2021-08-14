@@ -11,9 +11,9 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
     - [x] Jet can strafe a given position reliably and effectively
       - [x] Movement is smooth, realistic
       - [ ] Jet avoids obstacles
-    - [ ] Jet can land at the airfield, taxi, refuel, repair, and rearm, creating vulnerability
-      - [ ] Taxi movement is smooth, realistic
-    - [ ] Jet can take-off and return to normal operations
+    - [x] Jet can land at the airfield, taxi, refuel, repair, and rearm, creating vulnerability
+      - [] Taxi movement is smooth, realistic
+    - [x] Jet can take-off and return to normal operations
   - Search helicopter
     - [ ] Helicopter patrols around map
     - [ ] Helicopter can spot and follow player accurately, sending location to nearby troops
@@ -73,3 +73,6 @@ A line is drawn in the direction of the jet at the given angle of attack from ho
 At the end of the calculated dive, control is given back to the AI. The AI automatically pitches up and climbs to a given altitude, deploying a random amount of chaff/flares as it leaves the engagement zone. This leads to a smooth transition from the attack to escape phase.
 
 This process is repeatable until the jet runs out of ammo or fuel.
+
+## Landing 
+test
