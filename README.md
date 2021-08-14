@@ -12,7 +12,7 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
       - [x] Movement is smooth, realistic
       - [ ] Jet avoids obstacles
     - [x] Jet can land at the airfield, taxi, refuel, repair, and rearm, creating vulnerability
-      - [] Taxi movement is smooth, realistic
+      - [ ] Taxi movement is smooth, realistic
     - [x] Jet can take-off and return to normal operations
   - Search helicopter
     - [ ] Helicopter patrols around map
