@@ -32,6 +32,8 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
   - [ ] Squads have strategies for searching/combing positions after losing contact with enemy
 - Logistics
   - [ ] Enemy forces require logistics to have sufficient ammo, fuel reservers for support vehicles
+    - [ ] Logistic vehicles consist of fuel and ammo trucks, and direct helicopter deliveries
+    - [ ] Ammo and fuel are stored in destroyable reserves at the airbase
   - [ ] Destroying logistic vehicles reduces the effectiveness of the jet and helicopter by reducing maximum flight time and ammo count
   - [ ] As logistics become more disrupted, the enemy will start to defend them with vehicles and troops
 
