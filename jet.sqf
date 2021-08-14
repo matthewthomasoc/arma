@@ -4,7 +4,7 @@ fn_initiateAttack = {
 	
 	
 	// LI using velocity transformation, which smoothly moves vehicle
-	_interval = linearConversion [_currTime, _currTime+_dt, time, 0, _LIpoints];
+	_interval = linearConversion [_currTime, _currTime+_dt, time, 0, 1];
 	_jet setVelocityTransformation [ 
 		_pos1, 
 		_pos2, 
@@ -14,11 +14,11 @@ fn_initiateAttack = {
 		vectorDir _jet, 
 		vectorUp _jet, 
 		vectorUp _jet, 
-		_interval/_LIpoints
+		_interval
 	];
 	
 	// End onEachFrame
-	if (_interval > _LIpoints) exitWith {
+	if (_interval >= 1) exitWith {
 		_target setVariable ["finished", true];
 		[_key, "onEachFrame"] call BIS_fnc_removeStackedEventHandler;
 	};
@@ -177,6 +177,7 @@ fn_strafe = {
 	_target setPosATL _targetPosErrored;
 	
 	// define properties of attack profile
+	// default profile, used if bombs and rockets are out
 	_requiredDistanceAway = 5000; // required distance away to start attack
 	_weapon = _gun;
 	_flyInHeight = 600; // cruising altitude
@@ -185,8 +186,9 @@ fn_strafe = {
 	_endHeight = 350; // meters
 	_numPoints = 20; // number of points on the path where the jet shoots
 	
+	_rand = floor random 10;
 	// if using bombs instead (60% chance), change attack profile
-	if( (floor random 10 < 6 && _jet ammo _bombs != 0)) then {
+	if( (_rand < 6 || _jet ammo _rockets == 0) && _jet ammo _bombs != 0) then {
 		_weapon = _bombs;
 		_flyInHeight = 600; // cruising altitude
 		_angleOfAttack = 55; // degrees
@@ -195,7 +197,7 @@ fn_strafe = {
 		_numPoints = 1; // number of points on the path where the jet shoots
 	};
 	// if using rockets instead (40% chance), change attack profile
-	if( (floor random 10 >= 6 && _jet ammo _rockets != 0) || _jet ammo _bombs == 0) then {
+	if( (_rand >= 6 || _jet ammo _bombs == 0) && _jet ammo _rockets != 0) then {
 		_weapon = _rockets;
 		_flyInHeight = 600; // cruising altitude
 		_angleOfAttack = 25; // degrees
@@ -203,7 +205,6 @@ fn_strafe = {
 		_endHeight = 350; // meters
 		_numPoints = 20; // number of points on the path where the jet shoots
 	};
-	
 	
 	// Cruising altitude
 	_jet flyInheight _flyInHeight;
@@ -250,7 +251,7 @@ fn_strafe = {
 		_currTime = time;
 
 		// call event handler to move to current point
-		_key = "handler";
+		_key = "strafeHandler";
 		_target setVariable ["finished", false]; // set variable to know when EH is finished with execution
 		_handler = [_key, "onEachFrame", {[_this select 0, _this select 1, _this select 2, _this select 3, _this select 4, _this select 5, _this select 6, _this select 7] call fn_initiateAttack},[_jet,_target,_pos1,_pos2,_currTime,_dt,_LIpoints,_key]] call BIS_fnc_addStackedEventHandler;
 		
@@ -294,8 +295,10 @@ fn_patrol = {
 	// Move to waypoint
 	_jet move _waypoint;
 	
+	_startTime = time;
+	_maxTime = 120;
 	// Wait until the jet makes it, a strafe is requested, or dead
-	waitUntil {_jet distance _waypoint < _waypointCompletionRadius || jetStrafeRequested == true || !alive _jet};
+	waitUntil {_jet distance _waypoint < _waypointCompletionRadius || jetStrafeRequested == true || !alive _jet || ((time - _startTime) > _maxTime)};
 	
 	// Delete all waypoints
 	private _group = group _jet;
@@ -305,58 +308,265 @@ fn_patrol = {
 	};
 };
 
+/* Make jet taxi from one node to another, needs some refining */
+fn_taxi = {
+	params["_jet","_node","_startTime","_startDir","_startPos","_endPos","_dt","_vector","_angle","_key"];
+	// Interval from 0-1
+	_interval = linearConversion [_startTime, _startTime+_dt, time, 0, 1];
+	
+	// Change in position
+	_delta = _vector vectorMultiply _interval;
+	
+	// Change in orientation
+	_dtheta = (_angle * _interval);
+	
+	// Update position
+	_pos = _startPos vectorAdd _delta;
+	
+	// Move jet to new position
+	_jet setPosATL _pos;
+	
+	// Update velocity to be at 5 m/s
+	//_jet setVelocity (_jetUnit vectorMultiply 5);
+	
+	// Update orientation
+	_y = _startDir + _dtheta; _p = 4.8; _r = 0; 
+	_jet setVectorDirAndUp [ 
+		[sin _y * cos _p, cos _y * cos _p, sin _p], 
+		[[sin _r, -sin _p, cos _r * cos _p], -_y] call BIS_fnc_rotateVector2D 
+	];
+
+	if(_interval >= 1 || !alive _jet || !alive driver _jet) then {
+		_node setVariable ["finished", true];
+		[_key, "onEachFrame"] call BIS_fnc_removeStackedEventHandler;
+	};
+};
+
+/* Make jet land, taxi to repair station, then rearm/repair/refuel */
 fn_land = {
 	_jet landAt _airportID;
 	
 	waitUntil {isTouchingGround _jet};
+	
+	uiSleep 6;
+	
+	_velocityJ = 3;
+	
+	{
+		_node = _x;
+		
+		// save initial state
+		_startDir = direction _jet;
+		_startPos = getPosATL _jet;
+		_endPos = getPosATL _node;
+		_endPos set [2, _startPos#2];
+
+		// calculate time to get to next node
+		_distance = _startPos distance _endPos;
+		_dt = _distance / _velocityJ;
+
+		// calculate needed angle change
+		// Calculate change in orientation at next point
+		_angle = _jet getRelDir (getPos _node);
+		
+		// change to negative if past 180 degrees
+		if (_angle > 180) then {
+			_angle = _angle - 360;
+		};
+
+		// Vector from jet pos to node pos
+		_vector = _endPos vectorDiff _startPos;
+		
+		// Move to next point
+		_startTime = time;
+		_node setVariable ["finished", false]; // set variable to know when EH is finished with execution
+		_key = "taxiHandler";
+		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call fn_taxi},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key]] call BIS_fnc_addStackedEventHandler;
+		
+		// Wait until event handler ends before moving on to the next point
+		waitUntil { _node getVariable "finished"};
+	} forEach _taxiNodes;
+	
+	// force jet to stop
+	_jet engineOn false;
+	_jet setFuel 0;
+	
+	// make pilot get out and stay still
+	_jetD setBehaviour "SAFE";
+	_jetD setSpeedMode "LIMITED";
+	[_jetD] orderGetIn false;
+	doGetOut [_jetD];
+	moveOut _jetD;
+	
+	waitUntil {count (crew _jet) == 0};
+	
+	_waitPos = getPosASL pilotWait;
+	_wp = group _jetD addWaypoint [_waitPos, -1];
+	_wp setWaypointSpeed "LIMITED";
+	_wp setWaypointCombatMode "SAFE";
+	_wp setWaypointType "HOLD";
+	_wp setWaypointStatements ["true", "_jetD lookAt _jet; _jetD disableAI 'PATH'"];
+	
+	_interval = 0;
+	_startRepairTime = time;
+	_repairNeeded = damage _jet;
+	
+	// while jet is alive, pilot is alive, and nobody has entered the jet, repair, rearm, and refuel
+	while {_interval < 1 && alive _jetD && alive _jet && (count (crew _jet)) == 0} do {
+		// Range 0-1 from time to time + repair time
+		_interval = linearConversion [_startRepairTime, _startRepairTime+_repairRefuelTime, time, 0, 1];
+		
+		// refuel jet
+		_jet setFuel _interval;
+		
+		// rearm jet
+		_jet setVehicleAmmo _interval;
+		
+		// repair jet
+		_jet setDamage (_repairNeeded * (1 - _interval));
+		
+		systemChat str [fuel _jet, damage _jet];
+	};
+	
+	// once done, pilot get back into vehicle
+	_jetD enableAI "PATH";
+	[_jetD] orderGetIn true;
+	
+	// Wait until in jet
+	waitUntil {(count (crew _jet)) != 0};
+	
+	// Wait, to represent setting up the aircraft for takeoff
+	uiSleep 15;
+	
+	// turn on engine and tell jet to move to close cockpit
+	_jet engineOn true;
+	_jet move [0,0,0];
+	uiSleep 5;
+	
+	// Force jet to move forward on the taxiway and takeoff, since he doesn't want to move by himself
+	// when anything is nearby
+	
+	_node = taxiTakeoffNode;
+	
+	// save initial state
+	_startDir = direction _jet;
+	_startPos = getPosATL _jet vectorAdd [0,0,0.1];
+	_endPos = getPosATL _node vectorAdd [0,0,0.1];
+	_endPos set [2, _startPos#2];
+
+	// calculate time to get to next node
+	_distance = _startPos distance _endPos;
+	_dt = _distance / _velocityJ;
+
+	// calculate needed angle change
+	// Calculate change in orientation at next point
+	_angle = _jet getRelDir (getPos _node);
+	
+	// change to negative if past 180 degrees
+	if (_angle > 180) then {
+		_angle = _angle - 360;
+	};
+
+	// Vector from jet pos to node pos
+	_vector = _endPos vectorDiff _startPos;
+	
+	// Move to next point
+	_startTime = time;
+	_node setVariable ["finished", false]; // set variable to know when EH is finished with execution
+	_key = "taxiHandler";
+	_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call fn_taxi},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key]] call BIS_fnc_addStackedEventHandler;
+	
+	waitUntil {_node getVariable "finished"}
 };
 
+/* Update landing decision weight (more info)
+Decided by ammo count, fuel left, and aircraft damage
+*/
 fn_updateLandDecisionWeight = {
+	// reset to zero
+	_landDecisionWeight = 0;
+	
+	// find amount of used fuel and ammo
 	_fuelGone = 1 - fuel _jet;
 	_bombsGone = _bombAmmo - (_jet ammo _bombs);
 	_rocketsGone = _rocketAmmo - (_jet ammo _rockets);
 	
+	// calculate fuel and ammo weight
 	_ammoWeight = ((_bombsGone / _bombAmmo) + (_rocketsGone / _rocketAmmo)) / 2;
-	_fuelWeight = _fuelGone / 1;
 	
-	_damageWeight = (damage _jet) * 5;
+	// refuel needed every 15 minutes
+	_fuelWeight = _fuelGone * 2.5;
 	
+	// calculate weight from damage
+	_damageWeight = (damage _jet) * 4;
+	
+	// calculate total weight
 	_landDecisionWeight = _ammoWeight + _fuelWeight + _damageWeight;
 };
 
-_jet = _this;
+/* Initialize variables and setup script */
+fn_initialize = {
+	// save taxi path to array
+	_numTaxiNodes = 37;
+	_taxiNodes = [];
+	for "_i" from 1 to _numTaxiNodes do {
+		_var = "taxi_" + str _i;
+		
+		_node = missionNamespace getVariable [_var , objNull]; //Get the object variable
+		_taxiNodes pushBack _node;
+	};
+	
+	// disable jet attacking AI
+	_jet disableAI "TARGET";
+	_jet disableAi "AUTOCOMBAT";
+};
 
+// initialize variables
+_jet = _this;
+_jetD = driver _jet;
+_jetD assignAsDriver _jet;
+_repairPoint = repairPoint;
+_airportID = 0; // northwest airfield, chernarus
+_landDecisionWeight = 0;
+_taxiNodes = [];
 _mapRadius = worldSize / 2;
-jetStrafeTarget = [0,0,0];
 _center = [_mapRadius, _mapRadius, 0];
-_waypointCompletionRadius = 1000;
-_target = "Land_HelipadEmpty_F" createVehicle jetStrafeTarget;
+_waypointCompletionRadius = 2500;
+_repairRefuelTime = 30; // 180 seconds
+
+// jet weapon names
 _rockets = "rhs_weap_s5m1";
 _bombs = "rhs_weap_fab250";
 _gun = "rhs_weap_gsh302";
 _CM = "rhs_weap_CMDispenser_ASO2";
-_airportID = 0; // northwest airfield
-_landDecisionWeight = 0;
-_refuelLimit = 0.75;
 
+// rocket and bomb ammo
 _rocketAmmo = _jet ammo _rockets;
 _bombAmmo = _jet ammo _bombs;
 
+// initialize strafe globals
+jetStrafeTarget = [0,0,0];
 jetStrafeRequested = false;
-_jet disableAI "TARGET";
-_jet disableAi "AUTOCOMBAT";
+
+// create target
+_target = "Land_HelipadEmpty_F" createVehicle jetStrafeTarget;
+
+call fn_initialize;
 while {alive _jet} do {
-	_target setPosATL jetStrafeTarget;
+	// update landing decision weight
 	call fn_updateLandDecisionWeight;
-	call fn_land;
+	
 	systemChat str [_landDecisionWeight];
+	// if a strafe is requested
 	if jetStrafeRequested then {
+		_target setPosATL jetStrafeTarget;
 		[_target, _jet] call fn_strafe;
 		jetStrafeRequested = false;
 	};
+	// if needs to land
 	if (_landDecisionWeight >= 1) then {
 		call fn_land;
-	} else {
+	} else { // if else, patrol
 		[_center, _jet] call fn_patrol;
 	};
 };
