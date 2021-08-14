@@ -30,6 +30,9 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
      - Red: jet strafe
      - Yellow: nearby reinforcements
   - [ ] Squads have strategies for searching/combing positions after losing contact with enemy
+- Logistics
+  - [ ] Enemy forces require logistics to have sufficient ammo, fuel reservers for support vehicles
+  - [ ] Destroying logistic vehicles reduces the effectiveness of the jet and helicopter by reducing maximum flight time and ammo count
 
 # Squad Leader
 The squad leader has an AKM GP-25, with red, green, and white flares.
