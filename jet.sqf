@@ -1,5 +1,5 @@
 /* Use setVelocityTransformation to move between two given points in a specified time */
-fn_initiateAttack = {
+_fn_initiateAttack = {
 	params["_jet","_target","_pos1","_pos2","_currTime","_dt","_LIpoints","_key"];
 	
 	
@@ -25,7 +25,7 @@ fn_initiateAttack = {
 };
 
 /* Calculate jet's vectorUp using path */
-fn_calcVectorUp = {
+_fn_calcVectorUp = {
 	// Create vector from start point to end point
 	_unit_vec = _pos1 vectorFromTo _pos2;
 	_unit_vec = vectorNormalized _unit_vec;
@@ -37,7 +37,7 @@ fn_calcVectorUp = {
 	_jet setVelocity _velocityNew;
 	
 	// Find angle between unit vector and horizontal
-	_horizontal_vec = [_unit_vec select 0, _unit_vec select 1, 0];
+	_horizontal_vec = [_unit_vec#0, _unit_vec#1, 0];
 	_horizontal_vec = vectorNormalized _horizontal_vec;
 	_angle = acos(_unit_vec vectorCos _horizontal_vec);
 	_vectorUpEnd = [];
@@ -46,7 +46,7 @@ fn_calcVectorUp = {
 		// Change the direction of rotation depending on
 		// if the plane is going up or down, due to right-hand
 		// rule from cross product
-		_dz = (_pos2 select 2) - (_pos1 select 2);
+		_dz = (_pos2#2) - (_pos1#2);
 		if (_dz < 0) then {
 			// Reverse rotation direction
 			_angle = _angle * -1;
@@ -56,7 +56,7 @@ fn_calcVectorUp = {
 		_cross_prod = vectorNormalized _cross_prod;
 		// Rotate [0,0,1] by angle to horizontal using cross product as rotation axis
 		_vertical = [0,0,1];
-		_vectorUpEnd = [_vertical, _cross_prod, _angle] call fn_rotateVector;
+		_vectorUpEnd = [_vertical, _cross_prod, _angle] call _fn_rotateVector;
 		
 		// Set jet to new vectorUp
 		_jet setVectorUp _vectorUpEnd;
@@ -69,23 +69,23 @@ fn_calcVectorUp = {
 };
 
 /* Create attack profile path */
-fn_createPath = {
+_fn_createPath = {
 	// from target, draw line in direction of plane w/ z-axis angle of attack to start altitude
 	_vector = (getPosASL _target) vectorFromTo (getPosASL _jet);
 	_unit = vectorNormalized _vector;
-	_unit_attack = vectorNormalized [_unit select 0, _unit select 1, sin(_angleOfAttack)];
+	_unit_attack = vectorNormalized [_unit#0, _unit#1, sin(_angleOfAttack)];
 
 	// get start and end points of attack run
-	_attack_start = _startHeight / (_unit_attack select 2);
+	_attack_start = _startHeight / (_unit_attack#2);
 	_attack_start = (_unit_attack vectorMultiply _attack_start) vectorAdd (getPosASL _target);
-	_attack_end = _endHeight / (_unit_attack select 2);
+	_attack_end = _endHeight / (_unit_attack#2);
 	_attack_end = (_unit_attack vectorMultiply _attack_end) vectorAdd (getPosASL _target);
 
 	// Find dx, dy, dz per point
 	_delta = _attack_end vectorDiff _attack_start;
-	_dx = (_delta select 0) / (_numPoints+1);
-	_dy = (_delta select 1) / (_numPoints+1);
-	_dz = (_delta select 2) / (_numPoints+1);
+	_dx = (_delta#0) / (_numPoints+1);
+	_dy = (_delta#1) / (_numPoints+1);
+	_dz = (_delta#2) / (_numPoints+1);
 	
 	_path = [];
 	// Add start point to path
@@ -103,7 +103,7 @@ fn_createPath = {
 	
 	/* Create smooth entry into attack dive */
 	// Get jet position and first point position
-	_point = _path select 0;
+	_point = _path#0;
 	_pos = getPosASL _jet;
 	
 	// Get point halfway between start and current jet position
@@ -126,14 +126,14 @@ fn_createPath = {
 	_crossproduct = _unit_vec_half vectorCrossProduct _unit_vec_slope;
 	_crossproduct = vectorNormalized _crossproduct;
 
-	_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(75 / 150)] call fn_rotateVector;
+	_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(75 / 150)] call _fn_rotateVector;
 	// Rotate _unit_vec_slope around _crossproduct towards _unit_vec_half, and
 	// multiply it by an increasing distance to get a smooth curve
-	_numPts = 50;
+	_numPts = 200;
 	_array = [];
 	_distance = _halfPoint vectorDistance _point;
 	for "_i" from 1 to _numPts do {
-		_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(_i / _numPts)] call fn_rotateVector;
+		_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(_i / _numPts)] call _fn_rotateVector;
 		_vector = _rotatedUnit vectorMultiply (_distance * (_i / _numPts));
 		_newPoint = _point vectorAdd _vector;
 		_array pushback _newPoint;
@@ -150,7 +150,7 @@ fn_createPath = {
 };
 
 /* Rotate one vector around a unit vector axis, using Rodrigues Formula */
-fn_rotateVector = {
+_fn_rotateVector = {
 	params["_vector","_axis","_theta"];
 	
 	// using Rodrigues formula
@@ -169,7 +169,7 @@ for some reason, CUP jets don't work
 they freak out on the attack run and jitter everywhere
 they also lose direction sometimes and go sideways
 RHS and vanilla work fine */
-fn_strafe = {
+_fn_strafe = {
 	params ["_target", "_jet"];
 	_targetError = 50;
 	// add slight randomness to target location
@@ -220,7 +220,7 @@ fn_strafe = {
 	waitUntil {_jet distance _target < _requiredDistanceAway*.85};
 	
 	// Create strafing path
-	_path = call fn_createPath;
+	_path = call _fn_createPath;
 
 	// Align direction to target
 	_jet setDir (_jet getDir _target);
@@ -232,7 +232,7 @@ fn_strafe = {
 		_vectorUpStart = vectorUp _jet;
 		
 		// Get end orientation
-		_vectorUpEnd = call fn_calcVectorUp;
+		_vectorUpEnd = call _fn_calcVectorUp;
 		
 		// Find required delta time for smooth movement
 		_distance = _pos1 distance _pos2;
@@ -253,7 +253,7 @@ fn_strafe = {
 		// call event handler to move to current point
 		_key = "strafeHandler";
 		_target setVariable ["finished", false]; // set variable to know when EH is finished with execution
-		_handler = [_key, "onEachFrame", {[_this select 0, _this select 1, _this select 2, _this select 3, _this select 4, _this select 5, _this select 6, _this select 7] call fn_initiateAttack},[_jet,_target,_pos1,_pos2,_currTime,_dt,_LIpoints,_key]] call BIS_fnc_addStackedEventHandler;
+		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7] call _this#8},[_jet,_target,_pos1,_pos2,_currTime,_dt,_LIpoints,_key,_fn_initiateAttack]] call BIS_fnc_addStackedEventHandler;
 		
 		// Wait until event handler ends before moving on to the next point
 		waitUntil { _target getVariable "finished" };
@@ -263,7 +263,7 @@ fn_strafe = {
 	_jet move (_jet getRelPos [_requiredDistanceAway, 0]);
 	
 	// Flare twice
-	for "_i" from 0 to ((floor random 4) + 3) do {
+	for "_i" from 0 to ((floor random 2) + 3) do {
 		[_jet, _CM] call BIS_fnc_fire;
 		uiSleep 3;
 	};
@@ -273,7 +273,7 @@ fn_strafe = {
 randomly generate waypoints from
 a given center position, using 
 random directions and distances */
-fn_patrol = {
+_fn_patrol = {
 	params["_origin","_jet"];
 	_cruiseAltitude = 1000; // patrol altitude
 	
@@ -290,7 +290,7 @@ fn_patrol = {
 	// Calculate waypoint location
 	_waypoint = _direction vectorMultiply _distance;
 	_waypoint = _waypoint vectorAdd _center;
-	_waypoint = _waypoint vectorAdd [0,0,getPosATL _jet select 2];
+	_waypoint = _waypoint vectorAdd [0,0,getPosATL _jet#2];
 	
 	// Move to waypoint
 	_jet move _waypoint;
@@ -309,7 +309,7 @@ fn_patrol = {
 };
 
 /* Make jet taxi from one node to another, needs some refining */
-fn_taxi = {
+_fn_taxi = {
 	params["_jet","_node","_startTime","_startDir","_startPos","_endPos","_dt","_vector","_angle","_key"];
 	// Interval from 0-1
 	_interval = linearConversion [_startTime, _startTime+_dt, time, 0, 1];
@@ -343,14 +343,14 @@ fn_taxi = {
 };
 
 /* Make jet land, taxi to repair station, then rearm/repair/refuel */
-fn_land = {
+_fn_land = {
 	_jet landAt _airportID;
 	
 	waitUntil {isTouchingGround _jet};
 	
 	uiSleep 6;
 	
-	_velocityJ = 3;
+	_velocityJ = 5;
 	
 	{
 		_node = _x;
@@ -381,7 +381,7 @@ fn_land = {
 		_startTime = time;
 		_node setVariable ["finished", false]; // set variable to know when EH is finished with execution
 		_key = "taxiHandler";
-		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call fn_taxi},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key]] call BIS_fnc_addStackedEventHandler;
+		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call _this#10},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key, _fn_taxi]] call BIS_fnc_addStackedEventHandler;
 		
 		// Wait until event handler ends before moving on to the next point
 		waitUntil { _node getVariable "finished"};
@@ -474,7 +474,7 @@ fn_land = {
 	_startTime = time;
 	_node setVariable ["finished", false]; // set variable to know when EH is finished with execution
 	_key = "taxiHandler";
-	_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call fn_taxi},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key]] call BIS_fnc_addStackedEventHandler;
+	_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8,_this#9] call _this#10},[_jet,_node,_startTime,_startDir,_startPos,_endPos,_dt,_vector,_angle, _key, _fn_taxi]] call BIS_fnc_addStackedEventHandler;
 	
 	waitUntil {_node getVariable "finished"}
 };
@@ -482,7 +482,7 @@ fn_land = {
 /* Update landing decision weight (more info)
 Decided by ammo count, fuel left, and aircraft damage
 */
-fn_updateLandDecisionWeight = {
+_fn_updateLandDecisionWeight = {
 	// reset to zero
 	_landDecisionWeight = 0;
 	
@@ -505,7 +505,7 @@ fn_updateLandDecisionWeight = {
 };
 
 /* Initialize variables and setup script */
-fn_initialize = {
+_fn_initialize = {
 	// save taxi path to array
 	_numTaxiNodes = 37;
 	_taxiNodes = [];
@@ -551,22 +551,22 @@ jetStrafeRequested = false;
 // create target
 _target = "Land_HelipadEmpty_F" createVehicle jetStrafeTarget;
 
-call fn_initialize;
+call _fn_initialize;
 while {alive _jet} do {
 	// update landing decision weight
-	call fn_updateLandDecisionWeight;
+	call _fn_updateLandDecisionWeight;
 	
 	systemChat str [_landDecisionWeight];
 	// if a strafe is requested
 	if jetStrafeRequested then {
 		_target setPosATL jetStrafeTarget;
-		[_target, _jet] call fn_strafe;
+		[_target, _jet] call _fn_strafe;
 		jetStrafeRequested = false;
 	};
 	// if needs to land
 	if (_landDecisionWeight >= 1) then {
-		call fn_land;
+		call _fn_land;
 	} else { // if else, patrol
-		[_center, _jet] call fn_patrol;
+		[_center, _jet] call _fn_patrol;
 	};
 };

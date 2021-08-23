@@ -1,5 +1,5 @@
 /* Rotate one vector around a unit vector axis, using Rodrigues Formula */
-fn_rotateVector = {
+_fn_rotateVector = {
 	params["_vector","_axis","_theta"];
 	
 	// using Rodrigues formula
@@ -14,7 +14,7 @@ fn_rotateVector = {
 };
 
 /* Given position in ATL, fire specified flare type above with randomness */
-fn_fireFlare = {
+_fn_fireFlare = {
 	params["_position","_flare"];
 	
 	// create target for SL to shoot flare at, invisible helipad doesn't work?
@@ -39,7 +39,7 @@ fn_fireFlare = {
 	_angleToHoriz = acos(_horizontal vectorCos _unitvec);
 	// rotate horizontal vector by random angle in _angleRange around z-axis
 	_angleRand = (random 2*_angleRange) - _angleRange;
-	_newUnit = [_horizontal,[0,0,1],_angleRand] call fn_rotateVector;
+	_newUnit = [_horizontal,[0,0,1],_angleRand] call _fn_rotateVector;
 	_newUnit = _newUnit vectorAdd [0,0, sin(_angleToHoriz)];
 	_newUnit = vectorNormalized _newUnit;
 	_targetPos = _newUnit vectorMultiply _distance;
@@ -64,7 +64,7 @@ fn_fireFlare = {
 };
 
 /* Check if SL is in imminent danger by being shot at */
-fn_inImminentDanger = {
+_fn_inImminentDanger = {
 	_endangered = false;
 	_requiredTimeSinceEndangered = 5; // 5 seconds
 	
@@ -88,7 +88,7 @@ fn_inImminentDanger = {
 };
 
 /* Check if SL meets conditions to fire any flares */
-fn_CanFireFlares = {
+_fn_CanFireFlares = {
 	_canFire = false;
 	// Check if in combat
 	_timeSinceCombat = time - _lastTimeInCombat;
@@ -99,7 +99,7 @@ fn_CanFireFlares = {
 		// Imminent danger is defined as being
 		// endangered by an enemy unit in the past
 		// 5 seconds
-		_endangered = call fn_inImminentDanger;
+		_endangered = call _fn_inImminentDanger;
 		if (!_endangered && count _targets != 0) then {
 			_canFire = true;
 		};
@@ -109,7 +109,7 @@ fn_CanFireFlares = {
 };
 
 /* Check if the AI is in a situation a white flare is appropriate */
-fn_mostRecentlySeen = {
+_fn_mostRecentlySeen = {
 	_mostRecent = objNull;
 	if (count _targets == 0) exitWith {_mostRecent};
 	if (count _targets == 1) then {
@@ -168,7 +168,7 @@ fn_mostRecentlySeen = {
 };
 
 /* Check if it is dark */
-fn_checkIfDark = {
+_fn_checkIfDark = {
 	_isDark = false;
 	// these values are just from guessing and trial/error
 	// if sunOrMoon < 1, we know for sure it's dark
@@ -186,7 +186,7 @@ fn_checkIfDark = {
 };
 
 /* Initialize SL ammo count and check if SL is a valid unit */
-fn_initialize = {
+_fn_initialize = {
 	_valid = true;
 	// Check SL has correct weapon
 	if (!(_weapon in _weapons) || side _SL == _enemySide) exitWith {
@@ -214,7 +214,7 @@ fn_initialize = {
 };
 
 /* Remove old flare fires from the buffer array */
-fn_flareTimeoutClear = {
+_fn_flareTimeoutClear = {
 	/* White flares */
 	// get amount of flares fired
 	_length = count _whiteFlaresFired;
@@ -245,15 +245,16 @@ fn_flareTimeoutClear = {
 		};
 	};
 };
+
 /* Check conditions for white flare firing, and fire if all conditions met */
-fn_whiteFlares = {
+_fn_whiteFlares = {
 	// Check if base conditions are met to fire white flares
 	if (_canFireFlares && _isDark && count _targets != 0 && _numWhite != 0 && _SL distance _target < 300) then {
 		// Check if firing flares is appropriate in this situation
 		if(time - _lastSeen > 5 && count _whiteFlaresFired < _maxWhiteFlares) then {
 			// Fire flares, but only a specified percentage of the time
 			if (_fireWhiteFlareChance > random 100) then {
-				[_position,_whiteFlare] call fn_fireFlare;
+				[_position,_whiteFlare] call _fn_fireFlare;
 				_whiteFlaresFired pushBack time;
 				_numWhite = _numWhite - 1;
 			};
@@ -262,7 +263,7 @@ fn_whiteFlares = {
 };
 
 /* Check conditions for red flare firing, and fire if all conditions met */
-fn_redFlares = {
+_fn_redFlares = {
 	// Check if base conditions are met to f	ire red flares
 	if (_canFireFlares && count _targets != 0 && _numRed != 0 && !(_position isEqualTo objNull) && _redFlareWeight > _redFlareWeightBaseRequirement) then {
 		// Check if firing support is appropriate in this situation
@@ -279,7 +280,7 @@ fn_redFlares = {
 			// Fire red flares, but only a specified percentage of the time
 			_chanceFire = (_redFlareWeight - _redFlareWeightBaseRequirement) * 50;
 			if (_chanceFire > random 100 || _redFlareWeight > 1.5) then {
-				[_position,_redFlare] call fn_fireFlare;
+				[_position,_redFlare] call _fn_fireFlare;
 				// Call for jet support
 				jetStrafeRequested = true;
 				jetStrafeTarget = [_position#0,_position#1,0];
@@ -293,7 +294,7 @@ fn_redFlares = {
 
 /* Calculate current weighting for deciding to call fire support (more info)
 These weightings are based on complete guesses */
-fn_updateDecisionWeighting = {
+_fn_updateDecisionWeighting = {
 	_redFlareWeight = 0;
 	_unitsGroupDead = 0;
 	_unitsGroup = units group _SL;
@@ -313,13 +314,14 @@ fn_updateDecisionWeighting = {
 	_redFlareWeight = _redFlareWeight + (_numberLocations / 10);
 	
 	// Calculate suppression delta
-	call fn_updateSuppressionLevel;
+	call _fn_updateSuppressionLevel;
 	_redFlareWeight = _redFlareWeight + _suppressionLevel;
 	_redFlareWeight = _redFlareWeight + _unitsGroupDead * 0.1;
 	
 };
 
-fn_updateSuppressionLevel = {
+/* Calculate level of suppression */
+_fn_updateSuppressionLevel = {
 	_suppression = 0;
 	_delta = 0;
 	{ // Sum suppression for the entire squad
@@ -375,7 +377,7 @@ _weapons = weapons _SL;
 _magazines = magazines _SL;
 
 // Check if SL has correct weapon, count ammo
-if (!(call fn_initialize)) exitWith {};
+if (!(call _fn_initialize)) exitWith {};
 
 // Vars
 _lastTimeInCombat = 0;
@@ -421,20 +423,20 @@ _SL addEventHandler ["Fired", {
 
 while {alive _SL} do {
 	// Get targets
-	_targets = _SL targetsQuery [objNull, _enemySide, "", [], 0];
+	_targets = _SL targetsQuery [objNull, _enemySide, "", [], 180];
 	
 	// Get most recent target
-	_mostRecent = call fn_mostRecentlySeen;
+	_mostRecent = call _fn_mostRecentlySeen;
 	_lastSeen = 0;
 	_target = objNull;
 	_position = objNull;
 	
 	// Check if flare timeout array needs to be cleared
-	call fn_flareTimeoutClear;
+	call _fn_flareTimeoutClear;
 	
 	// Check conditions
-	_isDark = call fn_checkIfDark;
-	_canFireFlares = call fn_CanFireFlares;
+	_isDark = call _fn_checkIfDark;
+	_canFireFlares = call _fn_CanFireFlares;
 	// Make sure the target exists before applying vars
 	
 	if (!(_mostRecent isEqualTo objNull)) then {
@@ -444,11 +446,11 @@ while {alive _SL} do {
 		
 		// Calculate new weight for calling fire support
 		if (_lastSeen >= 0) then {
-			call fn_updateDecisionWeighting;
+			call _fn_updateDecisionWeighting;
 		};
 		
-		call fn_redFlares;
-		call fn_whiteFlares;
+		call _fn_redFlares;
+		call _fn_whiteFlares;
 	};
 	uiSleep 3;
 };
