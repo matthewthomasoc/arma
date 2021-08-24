@@ -313,18 +313,21 @@ _fn_taxi = {
 	params["_jet","_node","_startTime","_startDir","_startPos","_endPos","_dt","_vector","_angle","_key"];
 	// Interval from 0-1
 	_interval = linearConversion [_startTime, _startTime+_dt, time, 0, 1];
-	
-	// Change in position
-	_delta = _vector vectorMultiply _interval;
+	_startPos = _startPos vectorAdd [0,0,.002];
+	_jet setVelocityTransformation [ 
+		ATLtoASL _startPos, 
+		ATLtoASl (_startPos vectorAdd _vector), 
+		velocity _jet, 
+		velocity _jet, 
+		vectorDir _jet, 
+		vectorDir _jet, 
+		vectorUp _jet, 
+		vectorUp _jet, 
+		_interval
+	];
 	
 	// Change in orientation
 	_dtheta = (_angle * _interval);
-	
-	// Update position
-	_pos = _startPos vectorAdd _delta;
-	
-	// Move jet to new position
-	_jet setPosATL _pos;
 	
 	// Update velocity to be at 5 m/s
 	//_jet setVelocity (_jetUnit vectorMultiply 5);
@@ -338,6 +341,9 @@ _fn_taxi = {
 
 	if(_interval >= 1 || !alive _jet || !alive driver _jet) then {
 		_node setVariable ["finished", true];
+		if (!alive _jet || !alive driver _jet) then {
+			systemChat "dead";
+		};
 		[_key, "onEachFrame"] call BIS_fnc_removeStackedEventHandler;
 	};
 };
@@ -351,9 +357,15 @@ _fn_land = {
 	uiSleep 6;
 	
 	_velocityJ = 5;
+
+	// disable jet AI
+	_jetD disableAI "all";
+	_jet disableAI "all";
 	
 	{
 		_node = _x;
+
+		systemChat str [_forEachIndex, _x];
 		
 		// save initial state
 		_startDir = direction _jet;
@@ -387,10 +399,19 @@ _fn_land = {
 		waitUntil { _node getVariable "finished"};
 	} forEach _taxiNodes;
 	
+	// enable AI again
+	_jetD enableAI "all";
+
+	// disable jet attacking AI
+	_jet disableAI "TARGET";
+	_jet disableAi "AUTOCOMBAT";
+
 	// force jet to stop
 	_jet engineOn false;
 	_jet setFuel 0;
 	
+	uiSleep 3;
+
 	// make pilot get out and stay still
 	_jetD setBehaviour "SAFE";
 	_jetD setSpeedMode "LIMITED";
@@ -425,7 +446,6 @@ _fn_land = {
 		// repair jet
 		_jet setDamage (_repairNeeded * (1 - _interval));
 		
-		systemChat str [fuel _jet, damage _jet];
 	};
 	
 	// once done, pilot get back into vehicle
@@ -480,8 +500,7 @@ _fn_land = {
 };
 
 /* Update landing decision weight (more info)
-Decided by ammo count, fuel left, and aircraft damage
-*/
+Decided by ammo count, fuel left, and aircraft damage */
 _fn_updateLandDecisionWeight = {
 	// reset to zero
 	_landDecisionWeight = 0;
@@ -507,7 +526,7 @@ _fn_updateLandDecisionWeight = {
 /* Initialize variables and setup script */
 _fn_initialize = {
 	// save taxi path to array
-	_numTaxiNodes = 37;
+	_numTaxiNodes = 30;
 	_taxiNodes = [];
 	for "_i" from 1 to _numTaxiNodes do {
 		_var = "taxi_" + str _i;
