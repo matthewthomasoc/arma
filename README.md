@@ -9,10 +9,10 @@ This mission is to be an insurgency-type mode against a better-equipped force, w
   - Jet
     - [x] Jet patrols around map 
     - [x] Jet can strafe a given position reliably and effectively
-      - [x] Movement is smooth, realistic
+      - [ ] Movement is smooth, realistic
       - [ ] Jet avoids obstacles
     - [x] Jet can land at the airfield, taxi, refuel, repair, and rearm, creating vulnerability
-      - [ ] Taxi movement is smooth, realistic
+      - [x] Taxi movement is smooth, realistic
     - [x] Jet can take-off and return to normal operations
   - Search helicopter
     - [ ] Helicopter patrols around map
