@@ -1,6 +1,6 @@
 /* Use setVelocityTransformation to move between two given points in a specified time */
 _fn_initiateAttack = {
-	params["_jet","_target","_pos1","_pos2","_currTime","_dt","_LIpoints","_key"];
+	params["_jet","_target","_index","_orientation","_pos1","_pos2","_currTime","_dt","_key"];
 	
 	
 	// LI using velocity transformation, which smoothly moves vehicle
@@ -16,6 +16,31 @@ _fn_initiateAttack = {
 		vectorUp _jet, 
 		_interval
 	];
+
+	// If first node, slowly change direction towards node, with zero pitch and roll
+	if (_index == 0) then {
+		_yaw = _orientation#0;
+		_pitch = _orientation#1;
+		_roll = _orientation#2;
+
+		// Get direction to node from jet
+		_dyaw = _jet getRelDir _target;
+
+		// Change format of direction
+		if (_dyaw > 180) then {
+			_dyaw = _dyaw - 360;
+		};
+
+		_dpitch = -1 * _pitch;
+		_droll = -1 * _roll;
+
+		// set exact yaw, pitch, and roll
+		_y = getDir _jet + (_dyaw*_interval); _p = _pitch + (_dpitch*_interval); _r = _roll + (_droll*_interval);
+		_jet setVectorDirAndUp [
+			[sin _y * cos _p, cos _y * cos _p, sin _p],
+			[[sin _r, -sin _p, cos _r * cos _p], -_y] call BIS_fnc_rotateVector2D
+		];
+	};
 	
 	// End onEachFrame
 	if (_interval >= 1) exitWith {
@@ -98,7 +123,7 @@ _fn_createPath = {
 		_path pushBack _point;
 	};
 
-	// Add end point to apth
+	// Add end point to path
 	_path pushBack _attack_end;
 	
 	/* Create smooth entry into attack dive */
@@ -107,26 +132,26 @@ _fn_createPath = {
 	_pos = getPosASL _jet;
 	
 	// Get point halfway between start and current jet position
-	_vector = _pos vectorFromTo _point;
+	_vector = _point vectorDiff _pos;
 	_vector = _vector vectorMultiply 0.5;
 	_halfPoint = _pos vectorAdd _vector;
 	
 	// Get unit vector in opposite direction of dive 
 	_unit_vec_slope = _path#1 vectorFromTo _path#0;
-	_unit_vec_slope = vectorNormalized _unit_vec_slope;
 	
 	// Get unit vector towards halfway point
 	_unit_vec_half = _path#0 vectorFromTo _halfPoint;
-	_unit_vec_half = vectorNormalized _unit_vec_half;
 	
 	// Find the angle between the two unit vectors
 	_angle = acos(_unit_vec_half vectorCos _unit_vec_slope);
+
+	// Multiply angle by .75 to make the arc end above the half point
+	_angle = _angle * .75;
 	
 	// Now, we take the cross product to get a perpendicular vector
 	_crossproduct = _unit_vec_half vectorCrossProduct _unit_vec_slope;
 	_crossproduct = vectorNormalized _crossproduct;
 
-	_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(75 / 150)] call _fn_rotateVector;
 	// Rotate _unit_vec_slope around _crossproduct towards _unit_vec_half, and
 	// multiply it by an increasing distance to get a smooth curve
 	_numPts = 200;
@@ -141,11 +166,49 @@ _fn_createPath = {
 	
 	// Reverse array since it's backwards
 	reverse _array;
-	
+
 	{ // Add dive path to smooth curve
 		_array pushBack _x;
 	} forEach _path;
+
+	// Update path array
+	_path = _array;
+
+	// Create smooth arc from dive entry to jet position
+	// Get unit vector in opposite direction of dive 
+	_unit_vec_slope = _path#1 vectorFromTo _path#0;
 	
+	// Get unit vector towards jet
+	_unit_vec_jet = _path#0 vectorFromTo _pos;
+
+	// Get angle between two unit vectors
+	// Find the angle between the two unit vectors
+	_angle = acos(_unit_vec_jet vectorCos _unit_vec_slope);
+
+	// Now, we take the cross product to get a perpendicular vector
+	_crossproduct = _unit_vec_jet vectorCrossProduct _unit_vec_slope;
+	_crossproduct = vectorNormalized _crossproduct;
+
+	// Rotate _unit_vec_slope around _crossproduct towards _unit_vec_jet, and
+	// multiply it by an increasing distance to get a smooth curve
+	_numPts = 200;
+	_array = [];
+	_distance = _pos vectorDistance _path#0;
+	_distance = _distance * .9;
+	for "_i" from 1 to _numPts do {
+		_rotatedUnit = [_unit_vec_slope, _crossproduct, -1*_angle*(_i / _numPts)] call _fn_rotateVector;
+		_vector = _rotatedUnit vectorMultiply (_distance * (_i / _numPts));
+		_newPoint = _path#0 vectorAdd _vector;
+		_array pushback _newPoint;
+	};
+
+	// Reverse array since it's backwards
+	reverse _array;
+
+	{ // Add approach path to smooth curve
+		_array pushBack _x;
+	} forEach _path;
+
 	_array
 };
 
@@ -191,7 +254,7 @@ _fn_strafe = {
 	if( (_rand < 6 || _jet ammo _rockets == 0) && _jet ammo _bombs != 0) then {
 		_weapon = _bombs;
 		_flyInHeight = 600; // cruising altitude
-		_angleOfAttack = 55; // degrees
+		_angleOfAttack = 80; // degrees
 		_startHeight = 600; // meters
 		_endHeight = 400; // meters
 		_numPoints = 1; // number of points on the path where the jet shoots
@@ -222,9 +285,19 @@ _fn_strafe = {
 	// Create strafing path
 	_path = call _fn_createPath;
 
-	// Align direction to target
-	_jet setDir (_jet getDir _target);
+	// Save current orientation of plane (for first node)
+	// _orientation = [yaw, pitch, roll]
+	// Calculate yaw
+	_yaw = getDir _jet;
+	// Calculate pitch/roll
+	_pitchRoll = _jet call BIS_fnc_getPitchBank;
+	_pitch = _pitchRoll#0;
+	_roll = _pitchRoll#1;
 
+	// Save orientation in array
+	_orientation = [_yaw, _pitch, _roll];
+
+	_minSpeed = 130; // m/s
 	{
 		// Get positions and start orientation
 		_pos1 = getPosASL _jet;
@@ -237,10 +310,14 @@ _fn_strafe = {
 		// Find required delta time for smooth movement
 		_distance = _pos1 distance _pos2;
 		_v = vectorMagnitude (velocity _jet);
+
+		// Change speed of not above minimum
+		if (_v < _minSpeed) then {
+			_v = _minSpeed;
+		};
+
+		// Calculate dt between points
 		_dt = _distance / _v;
-		
-		// Set number of LI points
-		_LIpoints = 100;
 		
 		// Fire weapon, if during strafe
 		if ((_forEachIndex) > ((count _path - 1) - _numPoints)) then {
@@ -250,10 +327,13 @@ _fn_strafe = {
 		// Save current time
 		_currTime = time;
 
+		// Save current index
+		_index = _forEachIndex;
+
 		// call event handler to move to current point
 		_key = "strafeHandler";
 		_target setVariable ["finished", false]; // set variable to know when EH is finished with execution
-		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7] call _this#8},[_jet,_target,_pos1,_pos2,_currTime,_dt,_LIpoints,_key,_fn_initiateAttack]] call BIS_fnc_addStackedEventHandler;
+		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8] call _this#9},[_jet,_target,_index,_orientation,_pos1,_pos2,_currTime,_dt,_key,_fn_initiateAttack]] call BIS_fnc_addStackedEventHandler;
 		
 		// Wait until event handler ends before moving on to the next point
 		waitUntil { _target getVariable "finished" };
@@ -262,10 +342,10 @@ _fn_strafe = {
 	// Fly away from target
 	_jet move (_jet getRelPos [_requiredDistanceAway, 0]);
 	
-	// Flare twice
-	for "_i" from 0 to ((floor random 2) + 3) do {
+	// Flare twice plus 2 random chances
+	for "_i" from 0 to ((floor random 3) + 2) do {
 		[_jet, _CM] call BIS_fnc_fire;
-		uiSleep 3;
+		sleep 3;
 	};
 };
 
@@ -341,9 +421,6 @@ _fn_taxi = {
 
 	if(_interval >= 1 || !alive _jet || !alive driver _jet) then {
 		_node setVariable ["finished", true];
-		if (!alive _jet || !alive driver _jet) then {
-			systemChat "dead";
-		};
 		[_key, "onEachFrame"] call BIS_fnc_removeStackedEventHandler;
 	};
 };
@@ -354,7 +431,7 @@ _fn_land = {
 	
 	waitUntil {isTouchingGround _jet};
 	
-	uiSleep 6;
+	sleep 6;
 	
 	_velocityJ = 5;
 
@@ -362,14 +439,15 @@ _fn_land = {
 	_jetD disableAI "all";
 	_jet disableAI "all";
 	
+	// Preset height for jet on the runway
+	_presetZ = 0.1;
 	{
 		_node = _x;
-
-		systemChat str [_forEachIndex, _x];
 		
 		// save initial state
 		_startDir = direction _jet;
 		_startPos = getPosATL _jet;
+		_startPos set [2, _presetZ];
 		_endPos = getPosATL _node;
 		_endPos set [2, _startPos#2];
 
@@ -404,13 +482,13 @@ _fn_land = {
 
 	// disable jet attacking AI
 	_jet disableAI "TARGET";
-	_jet disableAi "AUTOCOMBAT";
+	_jet disableAI "AUTOCOMBAT";
 
 	// force jet to stop
 	_jet engineOn false;
 	_jet setFuel 0;
 	
-	uiSleep 3;
+	sleep 3;
 
 	// make pilot get out and stay still
 	_jetD setBehaviour "SAFE";
@@ -456,12 +534,12 @@ _fn_land = {
 	waitUntil {(count (crew _jet)) != 0};
 	
 	// Wait, to represent setting up the aircraft for takeoff
-	uiSleep 15;
+	sleep 15;
 	
 	// turn on engine and tell jet to move to close cockpit
 	_jet engineOn true;
 	_jet move [0,0,0];
-	uiSleep 5;
+	sleep 5;
 	
 	// Force jet to move forward on the taxiway and takeoff, since he doesn't want to move by himself
 	// when anything is nearby
@@ -470,8 +548,8 @@ _fn_land = {
 	
 	// save initial state
 	_startDir = direction _jet;
-	_startPos = getPosATL _jet vectorAdd [0,0,0.1];
-	_endPos = getPosATL _node vectorAdd [0,0,0.1];
+	_startPos = getPosATL _jet;
+	_endPos = getPosATL _node;
 	_endPos set [2, _startPos#2];
 
 	// calculate time to get to next node
@@ -575,7 +653,6 @@ while {alive _jet} do {
 	// update landing decision weight
 	call _fn_updateLandDecisionWeight;
 	
-	systemChat str [_landDecisionWeight];
 	// if a strafe is requested
 	if jetStrafeRequested then {
 		_target setPosATL jetStrafeTarget;
