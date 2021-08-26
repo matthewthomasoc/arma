@@ -10,7 +10,6 @@ _fn_initiateAttack = {
 
 	// If jet is not facing the correct direction, then set to correct direction
 	if (abs _dir > 2.5 && _index != 0) then {
-		systemChat str ["reset dir",_jet getRelDir _target];
 		_jet setDir (direction _jet + (_jet getRelDir _target));
 	};
 
@@ -709,8 +708,6 @@ call _fn_initialize;
 while {alive _jet} do {
 	// update landing decision weight
 	call _fn_updateLandDecisionWeight;
-	jetStrafeRequested = true; 
-	jetStrafeTarget = getPosATL townTarget;
 	
 	// if a strafe is requested
 	if jetStrafeRequested then {
