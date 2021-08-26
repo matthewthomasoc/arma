@@ -1,8 +1,19 @@
 /* Use setVelocityTransformation to move between two given points in a specified time */
 _fn_initiateAttack = {
-	params["_jet","_target","_index","_orientation","_pos1","_pos2","_currTime","_dt","_key"];
+	params["_jet","_target","_index","_orientation", "_delta","_pos1","_pos2","_currTime","_dt","_key"];
 	
-	
+	_dir = _jet getRelDir _target;
+
+	if (_dir > 180) then {
+		_dir = _dir - 360;
+	};
+
+	// If jet is not facing the correct direction, then set to correct direction
+	if (abs _dir > 2.5 && _index != 0) then {
+		systemChat str ["reset dir",_jet getRelDir _target];
+		_jet setDir (direction _jet + (_jet getRelDir _target));
+	};
+
 	// LI using velocity transformation, which smoothly moves vehicle
 	_interval = linearConversion [_currTime, _currTime+_dt, time, 0, 1];
 	_jet setVelocityTransformation [ 
@@ -17,25 +28,25 @@ _fn_initiateAttack = {
 		_interval
 	];
 
-	// If first node, slowly change direction towards node, with zero pitch and roll
+	// If first node, slowly change direction towards node
 	if (_index == 0) then {
-		_yaw = _orientation#0;
+		// Get starting yaw, pitch, roll
+		_yaw = getDir _jet;
 		_pitch = _orientation#1;
 		_roll = _orientation#2;
 
-		// Get direction to node from jet
+		// Get change in yaw, pitch, roll required
 		_dyaw = _jet getRelDir _target;
+		_dpitch = _delta#1;
+		_droll = _delta#2;
 
 		// Change format of direction
 		if (_dyaw > 180) then {
 			_dyaw = _dyaw - 360;
 		};
 
-		_dpitch = -1 * _pitch;
-		_droll = -1 * _roll;
-
 		// set exact yaw, pitch, and roll
-		_y = getDir _jet + (_dyaw*_interval); _p = _pitch + (_dpitch*_interval); _r = _roll + (_droll*_interval);
+		_y = getDir _jet + (_dyaw*_interval*.25); _p = _pitch + (_dpitch*_interval); _r = _roll + (_droll*_interval);
 		_jet setVectorDirAndUp [
 			[sin _y * cos _p, cos _y * cos _p, sin _p],
 			[[sin _r, -sin _p, cos _r * cos _p], -_y] call BIS_fnc_rotateVector2D
@@ -280,8 +291,11 @@ _fn_strafe = {
 	
 	// Re-approach the target from far away
 	_jet move (getPos _target);
-	waitUntil {_jet distance _target < _requiredDistanceAway*.85};
-	
+	while {_jet distance _target > _requiredDistanceAway*.85} do {
+		_jet move (getPos _target);
+		sleep 1.5;
+	};
+
 	// Create strafing path
 	_path = call _fn_createPath;
 
@@ -297,24 +311,57 @@ _fn_strafe = {
 	// Save orientation in array
 	_orientation = [_yaw, _pitch, _roll];
 
+	/* Calculate required change in pitch, roll, and yaw for first node */
+	// Get required change in pitch
+	// Unit vector from jet to next point
+	_unit = _path#0 vectorFromTo _path#1;
+	// Unit vector in same direction, but horizontal
+	_horiz = _unit;
+	_horiz set [2,0];
+	// Angle between both vectors
+	_angleFromHorizontal = acos(_unit vectorCos _horiz);
+	// Determine sign of angle
+	if (_unit#2 < 0) then {
+		_angleFromHorizontal = _angleFromHorizontal * -1;
+	};
+	// Calculate dpitch
+	_dpitch = _angleFromHorizontal - _pitch;
+
+	// Get direction to target from jet
+	_dyaw = _jet getRelDir _target;
+	// Change format of direction
+	if (_dyaw > 180) then {
+		_dyaw = _dyaw - 360;
+	};
+
+	// Set delta roll so plane has zero roll
+	_droll = -1 * _roll;
+
+	_delta = [_dyaw, _dpitch, _droll];
+
 	_minSpeed = 130; // m/s
+	_v = vectorMagnitude (velocity _jet);
+
+	// Change speed of not above minimum
+	if (_v < _minSpeed) then {
+		_v = _minSpeed;
+	};
+
 	{
 		// Get positions and start orientation
 		_pos1 = getPosASL _jet;
 		_pos2 = _x;
 		_vectorUpStart = vectorUp _jet;
+
+		// Set velocity
+		_unit = _pos1 vectorFromTo _pos2;
+		_jet setVelocity (_unit vectorMultiply _v);
 		
 		// Get end orientation
 		_vectorUpEnd = call _fn_calcVectorUp;
 		
 		// Find required delta time for smooth movement
 		_distance = _pos1 distance _pos2;
-		_v = vectorMagnitude (velocity _jet);
-
-		// Change speed of not above minimum
-		if (_v < _minSpeed) then {
-			_v = _minSpeed;
-		};
 
 		// Calculate dt between points
 		_dt = _distance / _v;
@@ -333,7 +380,7 @@ _fn_strafe = {
 		// call event handler to move to current point
 		_key = "strafeHandler";
 		_target setVariable ["finished", false]; // set variable to know when EH is finished with execution
-		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8] call _this#9},[_jet,_target,_index,_orientation,_pos1,_pos2,_currTime,_dt,_key,_fn_initiateAttack]] call BIS_fnc_addStackedEventHandler;
+		_handler = [_key, "onEachFrame", {[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7, _this#8, _this#9] call _this#10},[_jet,_target,_index,_orientation,_delta,_pos1,_pos2,_currTime,_dt,_key,_fn_initiateAttack]] call BIS_fnc_addStackedEventHandler;
 		
 		// Wait until event handler ends before moving on to the next point
 		waitUntil { _target getVariable "finished" };
@@ -341,7 +388,7 @@ _fn_strafe = {
 	
 	// Fly away from target
 	_jet move (_jet getRelPos [_requiredDistanceAway, 0]);
-	
+
 	// Flare twice plus 2 random chances
 	for "_i" from 0 to ((floor random 3) + 2) do {
 		[_jet, _CM] call BIS_fnc_fire;
@@ -427,12 +474,22 @@ _fn_taxi = {
 
 /* Make jet land, taxi to repair station, then rearm/repair/refuel */
 _fn_land = {
+	
+	// Tell jet to move near the airport, specified location
+	while {_jet distance landingApproach > 2500} do {
+		_jet move getPos landingApproach;
+		sleep 1.5;
+	};
+
+	// land
 	_jet landAt _airportID;
 	
+	// wait until landed
 	waitUntil {isTouchingGround _jet};
 	
 	sleep 6;
 	
+	// taxi velocity
 	_velocityJ = 5;
 
 	// disable jet AI
@@ -652,6 +709,8 @@ call _fn_initialize;
 while {alive _jet} do {
 	// update landing decision weight
 	call _fn_updateLandDecisionWeight;
+	jetStrafeRequested = true; 
+	jetStrafeTarget = getPosATL townTarget;
 	
 	// if a strafe is requested
 	if jetStrafeRequested then {
