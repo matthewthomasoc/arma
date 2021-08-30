@@ -237,6 +237,39 @@ _fn_rotateVector = {
 	_result
 };
 
+/* Calculate amount of error in target position due to enviroment */
+_environmentVisiblity = {
+	_maxError = 150;
+	_fogParams = fogParams;
+	_fogLevel = _fogParams#0;
+	_fogBase = _fogParams#2;
+	_rainLevel = rain; // Rain level
+	_lightLevel = 1 - sunOrMoon; // Light level
+
+	// If pilot has NVG, reduce light penalty
+	_lightWeight = 1;
+	if !(hmd _jetD isEqualTo "") then {
+		_lightWeight = .25;
+	};
+
+	// Check if target is above the fog base
+	_pos = getPosASL _target;
+	_fogWeight = 1;
+	if (_pos#2 > _fogBase) then {
+		_fogWeight = .5;
+	};
+
+
+	_errorWeight = _fogLevel * _fogWeight + .5 * _rainLevel + _lightLevel * _lightWeight;
+	if (_errorWeight > 1) then {
+		_errorWeight = 1;
+	};
+	_error = _maxError * _errorWeight;
+
+	_error
+};
+
+
 /* Main body for setting up strafe run (more info)
 for some reason, CUP jets don't work
 they freak out on the attack run and jitter everywhere
@@ -244,8 +277,10 @@ they also lose direction sometimes and go sideways
 RHS and vanilla work fine */
 _fn_strafe = {
 	params ["_target", "_jet"];
-	_targetError = 50;
-	// add slight randomness to target location
+	systemChat str "strafe called";
+	_targetError = call _environmentVisiblity;
+
+	// add slight randomness to target location due to weather
 	_targetPosErrored = getPosATL _target vectorAdd [(random 2*_targetError) - _targetError, (random 2*_targetError) - _targetError, 0];
 	_target setPosATL _targetPosErrored;
 	
@@ -265,9 +300,9 @@ _fn_strafe = {
 		_weapon = _bombs;
 		_flyInHeight = 600; // cruising altitude
 		_angleOfAttack = 80; // degrees
-		_startHeight = 600; // meters
-		_endHeight = 400; // meters
-		_numPoints = 1; // number of points on the path where the jet shoots
+		_startHeight = 800; // meters
+		_endHeight = 600; // meters
+		_numPoints = 2; // number of points on the path where the jet shoots
 	};
 	// if using rockets instead (40% chance), change attack profile
 	if( (_rand >= 6 || _jet ammo _bombs == 0) && _jet ammo _rockets != 0) then {
@@ -284,12 +319,14 @@ _fn_strafe = {
 	
 	// If too close to the target, fly away far 
 	if (_jet distance _target < _requiredDistanceAway) then {
+		systemChat str "too close";
 		_jet move (_jet getRelPos [_requiredDistanceAway*1.5, 0]);
 		waitUntil {_jet distance _target > _requiredDistanceAway*1.25};
 	};
 	
 	// Re-approach the target from far away
 	_jet move (getPos _target);
+	systemChat str "coming back";
 	while {_jet distance _target > _requiredDistanceAway*.85} do {
 		_jet move (getPos _target);
 		sleep 1.5;
@@ -346,6 +383,7 @@ _fn_strafe = {
 		_v = _minSpeed;
 	};
 
+	systemChat str "starting attack";
 	{
 		// Get positions and start orientation
 		_pos1 = getPosASL _jet;
@@ -689,7 +727,7 @@ _repairRefuelTime = 30; // 180 seconds
 
 // jet weapon names
 _rockets = "rhs_weap_s5m1";
-_bombs = "rhs_weap_fab250";
+_bombs = "rhs_weap_rbk250_ptab25";
 _gun = "rhs_weap_gsh302";
 _CM = "rhs_weap_CMDispenser_ASO2";
 
@@ -708,6 +746,13 @@ call _fn_initialize;
 while {alive _jet} do {
 	// update landing decision weight
 	call _fn_updateLandDecisionWeight;
+	call _environmentVisiblity;
+
+	_jet disableAI "AUTOCOMBAT";
+	_jet disableAI "AUTOTARGET";
+	_jet disableAI "CHECKVISIBLE";
+	_jet disableAI "TARGET";
+	_jet disableAI "WEAPONAIM";
 	
 	// if a strafe is requested
 	if jetStrafeRequested then {
