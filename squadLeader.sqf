@@ -28,7 +28,7 @@ _fn_fireFlare = {
 	_targetPos = _position vectorAdd [0, 0, 150];
 	// get distance to position
 	_distance = _SLPos vectorDistance _targetPos;
-	// randomly scale distance between x.8-x1.8
+	// randomly scale distance between x.5-x1.5
 	_distanceMultiplier = (random 1) + .5;
 	_distance = _distance * _distanceMultiplier;
 	// get unit vector to target
@@ -49,7 +49,11 @@ _fn_fireFlare = {
 	_target setPosATL _targetPos;
 	
 	_SL setUnitPos "MIDDLE";
-	uiSleep .25;
+	_SL disableAI "PATH";
+	_SL disableAI "TARGET";
+
+	uiSleep 2;
+
 	_SL reveal _target;
 	_SL lookAt _target;
 	_SL doTarget _target;
@@ -57,6 +61,11 @@ _fn_fireFlare = {
 	uiSleep 2;
 	
 	_SL fire ["GP25Muzzle","Single",_flare];
+
+	_SL enableAI "PATH";
+	_SL enableAI "TARGET";
+
+	_SL setVariable ["flareTarget", _targetPos];
 	
 	_SL doWatch objNull;
 	_SL setUnitPos "AUTO";
@@ -271,15 +280,15 @@ _fn_redFlares = {
 		_nearbyMen = _position nearEntities [["Man"],_fireSupportRedZone];
 		_friendlyFire = false;
 		{
-			if (side _x != _enemySide) exitWith {
+			if (side _x == _friendlySide) exitWith {
 				_friendlyFire = true;
 			};
 		} forEach _nearbyMen;
 		// If the enemy isn't being directly engaged, fire support flares are not maxxed, no friendlies nearby, and jet isn't busy already
-		if(time - _lastSeen > 5 && count _supportFlaresFired < _maxSupportFlares && !_friendlyFire && !jetStrafeRequested) then {
+		if((time - _lastSeen > 5 || _redFlareWeight > _redFlareWeightTrigger) && count _supportFlaresFired < _maxSupportFlares && !_friendlyFire && !jetStrafeRequested) then {
 			// Fire red flares, but only a specified percentage of the time
 			_chanceFire = (_redFlareWeight - _redFlareWeightBaseRequirement) * 50;
-			if (_chanceFire > random 100 || _redFlareWeight > 1.5) then {
+			if (_chanceFire > random 100 || _redFlareWeight > _redFlareWeightTrigger) then {
 				[_position,_redFlare] call _fn_fireFlare;
 				// Call for jet support
 				jetStrafeRequested = true;
@@ -296,7 +305,6 @@ _fn_redFlares = {
 These weightings are based on complete guesses */
 _fn_updateDecisionWeighting = {
 	_redFlareWeight = 0;
-	_unitsGroupDead = 0;
 	_unitsGroup = units group _SL;
 	// locations that an enemy has an advantage
 	_dangerousLocations = ["Hill","RockArea","VegetationBroadleaf","VegetationFir","VegetationPalm","ViewPoint","Mount","StrongpointArea"];
@@ -317,13 +325,15 @@ _fn_updateDecisionWeighting = {
 	call _fn_updateSuppressionLevel;
 	_redFlareWeight = _redFlareWeight + _suppressionLevel;
 	_redFlareWeight = _redFlareWeight + _unitsGroupDead * 0.1;
-	
+
+	systemChat str [_redFlareWeight];
 };
 
 /* Calculate level of suppression */
 _fn_updateSuppressionLevel = {
 	_suppression = 0;
 	_delta = 0;
+	_unitsGroupDead = 0;
 	{ // Sum suppression for the entire squad
 		if (!(alive _x)) then {
 			_unitsGroupDead = _unitsGroupDead + 1;
@@ -337,11 +347,12 @@ _fn_updateSuppressionLevel = {
 	// Calculate weight delta
 	// delta is average suppression of group, multiplied by number of casualties
 	_delta = _suppression / _unitsGroupAlive;
-	_delta = _delta * (1 + _unitsGroupDead);
+	_delta = _delta + (0.025*_unitsGroupDead);
 	
 	// if not under suppression
-	if (_delta == 0) then {
-		_delta = -0.025 - (time - _lastSeen) / 1000;
+	_calmPeriod = 25;
+	if (_delta == 0 && (time - _lastEndangered > _calmPeriod)) then {
+		_delta = -0.025;
 	};
 	
 	
@@ -360,6 +371,9 @@ _SL = _this;
 
 // Enemy side for SL
 _enemySide = east;
+
+// Friendly size
+_friendlySide = west;
 
 // Set weapon/magazine types
 _weapon = "CUP_arifle_AK103_GL_top_rail";
@@ -383,6 +397,7 @@ if (!(call _fn_initialize)) exitWith {};
 _lastTimeInCombat = 0;
 _engagementTime = 60;
 _suppressionLevel = 0;
+_unitsGroupDead = 0;
 
 // Flare parameters
 _whiteFlaresFired = [];
@@ -390,30 +405,29 @@ _supportFlaresFired = [];
 _fireWhiteFlareChance = 25; // percentage
 _maxWhiteFlares = 2;
 _whiteFlaresTimeout = 60;
-_maxSupportFlares = 1;
+_maxSupportFlares = 2;
 _supportFlaresTimeout = 300;
-_fireSupportRedZone = 350;
+_fireSupportRedZone = 150;
 _redFlareWeight = 0;
-_redFlareWeightBaseRequirement = .5;
+_redFlareWeightBaseRequirement = .75;
+_redFlareWeightTrigger = 2;
 
 _SL addEventHandler ["Fired", {
 	[_this#0, _this#1, _this#2, _this#3, _this#4, _this#5, _this#6, _this#7] spawn {
 		params ["_unit", "_weapon", "_muzzle", "_mode", "_ammo", "_magazine", "_projectile", "_gunner"];
 		// Red flare
 		_heightDeleted = 2.5; // meters
-		systemChat str[_ammo];
-		if (_magazine == "CUP_FlareRed_GP25_M" || _ammo == "F_40mm_Red") then {
+		// Flares
+		if (_magazine == "CUP_IlumFlareWhite_GP25_M" || _magazine == "CUP_FlareRed_GP25_M") then {
+			// Move flare above target
+			sleep 2;
+			_target = _unit getVariable "flareTarget";
+			_target set [2, 125];
+			_projectile setPosATL _target;
+			systemChat str [_target];
+
 			// Wait until flare reaches the ground
 			uiSleep 1;
-			waitUntil {(getPosATL _projectile select 2) < _heightDeleted};
-			
-			// Delete flare once it gets near the ground
-			deleteVehicle _projectile;
-		};
-		if (_magazine == "CUP_IlumFlareWhite_GP25_M") then {
-			// Wait until flare reaches the ground
-			uiSleep 1;
-			systemChat str [getPosATL _projectile];
 			waitUntil {(getPosATL _projectile select 2) < _heightDeleted};
 			// Delete flare once it gets near the ground
 			deleteVehicle _projectile;
@@ -443,14 +457,15 @@ while {alive _SL} do {
 		_lastSeen = _mostRecent#0;
 		_target = _mostRecent#1;
 		_position = _mostRecent#2;
-		
+		_lastEndangered = (_SL targetKnowledge _target)#3;
+
 		// Calculate new weight for calling fire support
-		if (_lastSeen >= 0) then {
-			call _fn_updateDecisionWeighting;
-		};
+		call _fn_updateDecisionWeighting;
 		
-		call _fn_redFlares;
-		call _fn_whiteFlares;
+		if !(_position isEqualTo [0,0,0]) then {
+			call _fn_redFlares;
+			call _fn_whiteFlares;
+		};
 	};
 	uiSleep 3;
 };
